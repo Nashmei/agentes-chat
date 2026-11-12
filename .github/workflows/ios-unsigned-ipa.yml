@@ -5,7 +5,7 @@ permissions:
   contents: read
 jobs:
   ipa:
-    runs-on: macos-15
+    runs-on: macos-15-intel
     timeout-minutes: 90
     env:
       APP_VARIANT: preview
@@ -28,7 +28,11 @@ jobs:
         working-directory: apps/mobile
         run: |
           set -o pipefail
-          xcodebuild -workspace ios/agentes.xcworkspace -scheme agentes -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/ios-build" CODE_SIGNING_ALLOWED=NO build
+          WORKSPACE=$(find ios -maxdepth 1 -name '*.xcworkspace' -type d | head -1)
+          test -n "$WORKSPACE"
+          SCHEME=$(basename "$WORKSPACE" .xcworkspace)
+          echo "Building workspace: $WORKSPACE; scheme: $SCHEME"
+          xcodebuild -workspace "$WORKSPACE" -scheme "$SCHEME" -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/ios-build" CODE_SIGNING_ALLOWED=NO build
       - name: Package unsigned IPA
         run: |
           set -e
