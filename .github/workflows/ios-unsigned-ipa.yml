@@ -1,0 +1,46 @@
+name: iOS unsigned IPA (Feather / ESign)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ipa:
+    runs-on: macos-15
+    timeout-minutes: 90
+    env:
+      APP_VARIANT: preview
+      EXPO_PUBLIC_API_URL: https://app.agentes.chat
+      CI: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Generate iOS native project
+        working-directory: apps/mobile
+        run: bunx expo prebuild --platform ios --clean --no-install
+      - name: Install CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install --repo-update
+      - name: Build unsigned device app
+        working-directory: apps/mobile
+        run: |
+          set -o pipefail
+          xcodebuild -workspace ios/agentes.xcworkspace -scheme agentes -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath "$RUNNER_TEMP/ios-build" CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned IPA
+        run: |
+          set -e
+          APP=$(find "$RUNNER_TEMP/ios-build/Build/Products/Release-iphoneos" -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -qry agentes-ios-unsigned.ipa Payload
+          cp agentes-ios-unsigned.ipa "$GITHUB_WORKSPACE/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: agentes-ios-unsigned-ipa
+          path: agentes-ios-unsigned.ipa
+          retention-days: 7
